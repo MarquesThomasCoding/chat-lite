@@ -21,6 +21,10 @@
       #users-count { font-weight: bold; margin-bottom: 0.5rem; }
       
       body { margin-right: 200px; }
+
+      #rooms-container { position:fixed; top:0; left:0; width:100%; background:rgba(0,0,0,0.05); padding:0.5rem 0 0.5rem 210px; z-index:10; display:flex; gap:1rem; align-items:center; }
+      #current-room { font-weight:bold; }
+      .room-btn { background: #333; border: none; padding: 0 1rem; border-radius: 3px; outline: none; color: #fff; cursor: pointer; }
     </style>
   </head>
   <body>
@@ -28,6 +32,12 @@
     <div id="users-container">
       <div id="users-count">Utilisateurs connectés (0)</div>
       <ul id="users-list"></ul>
+    </div>
+    <div id="rooms-container">
+      <span id="current-room">Room: Général</span>
+      <button class="room-btn" data-room="Général">Général</button>
+      <button class="room-btn" data-room="Sport">Sport</button>
+      <button class="room-btn" data-room="Tech">Tech</button>
     </div>
     <ul id="messages"></ul>
     <form id="form" action="">
@@ -39,6 +49,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let counter = 0;
+        let currentRoom = 'Général';
 
         const socket = io({
             auth: {
@@ -53,6 +64,8 @@
         const messages = document.getElementById('messages');
         const usersList = document.getElementById('users-list');
         const usersCount = document.getElementById('users-count');
+        const currentRoomSpan = document.getElementById('current-room');
+        const roomButtons = document.querySelectorAll('.room-btn');
 
         function updateUsersList(users) {
             usersList.innerHTML = '';
@@ -90,21 +103,48 @@
             updateUsersList([]);
         });
 
+        roomButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const newRoom = btn.getAttribute('data-room');
+                if (newRoom !== currentRoom) {
+                    socket.emit('join room', newRoom, currentRoom, () => {}); // Ajoute un callback vide
+                    currentRoom = newRoom;
+                    currentRoomSpan.textContent = `Room: ${currentRoom}`;
+                    messages.innerHTML = '';
+                }
+            });
+        });
+
+        // Affiche l'historique reçu du serveur pour la room sélectionnée
+        socket.on('room history', (history, room) => {
+            if (room === currentRoom) {
+                messages.innerHTML = '';
+                history.forEach(({msg, serverOffset}) => {
+                    const item = document.createElement('li');
+                    item.textContent = msg;
+                    messages.appendChild(item);
+                });
+                window.scrollTo(0, document.body.scrollHeight);
+            }
+        });
+
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             if (input.value) {
                 const clientOffset = `${socket.id}-${counter++}`;
-                socket.emit('chat message', input.value, clientOffset);
+                socket.emit('chat message', input.value, clientOffset, currentRoom); // Ajoute la room
                 input.value = '';
             }
         });
 
-        socket.on('chat message', (msg, serverOffset) => {
-            const item = document.createElement('li');
-            item.textContent = msg;
-            messages.appendChild(item);
-            window.scrollTo(0, document.body.scrollHeight);
-            socket.auth.serverOffset = serverOffset;
+        socket.on('chat message', (msg, serverOffset, room) => {
+            if (room === currentRoom) {
+                const item = document.createElement('li');
+                item.textContent = msg;
+                messages.appendChild(item);
+                window.scrollTo(0, document.body.scrollHeight);
+                socket.auth.serverOffset = serverOffset;
+            }
         });
     </script>
 

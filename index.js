@@ -27,12 +27,13 @@ if(cluster.isPrimary) {
         driver: sqlite3.Database
     });
 
-    // create our 'messages' table (you can ignore the 'client_offset' column for now)
+    // create our 'messages' table (ajout de la colonne room)
     await db.exec(`
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             client_offset TEXT UNIQUE,
-            content TEXT
+            content TEXT,
+            room TEXT
         );
     `);
 
@@ -73,21 +74,33 @@ if(cluster.isPrimary) {
             socket.broadcast.emit('user connected', socket.id);
         });
 
-        socket.on('chat message', async (msg, clientOffset, callback) => {
+        // Gestion des rooms côté serveur
+        socket.on('join room', async (newRoom, oldRoom, callback) => {
+            if (oldRoom) {
+                await socket.leave(oldRoom);
+            }
+            await socket.join(newRoom);
+            // Récupérer l'historique de la room
+            const history = await db.all('SELECT content as msg, id as serverOffset FROM messages WHERE room = ? ORDER BY id ASC LIMIT 50', newRoom);
+            socket.emit('room history', history, newRoom);
+            if (typeof callback === 'function') callback();
+        });
+
+        socket.on('chat message', async (msg, clientOffset, room, callback) => {
             let result;
             try {
-            // store the message in the database
-            result = await db.run('INSERT INTO messages (content, client_offset) VALUES (?, ?)', msg, clientOffset);
+                // store the message in the database avec la room
+                result = await db.run('INSERT INTO messages (content, client_offset, room) VALUES (?, ?, ?)', msg, clientOffset, room);
             } catch (e) {
                 if(e.errno === 19) {
-                    callback()
+                    if (typeof callback === 'function') callback();
                 } else {
                 }
-            return;
+                return;
             }
             // include the offset with the message
-            io.emit('chat message', msg, result.lastID);
-            callback();
+            io.to(room).emit('chat message', msg, result.lastID, room);
+            if (typeof callback === 'function') callback();
         });
 
         socket.on('disconnect', () => {
@@ -109,14 +122,12 @@ if(cluster.isPrimary) {
         if (!socket.recovered) {
             // if the connection state recovery was not successful
             try {
-            await db.each('SELECT id, content FROM messages WHERE id > ?',
-                [socket.handshake.auth.serverOffset || 0],
-                (_err, row) => {
-                socket.emit('chat message', row.content, row.id);
-                }
-            )
+                // Par défaut, on envoie l'historique de la room "Général"
+                const defaultRoom = 'Général';
+                const history = await db.all('SELECT content as msg, id as serverOffset FROM messages WHERE room = ? ORDER BY id ASC LIMIT 50', defaultRoom);
+                socket.emit('room history', history, defaultRoom);
             } catch (e) {
-            // something went wrong
+                // something went wrong
             }
         }
     });
