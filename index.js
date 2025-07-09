@@ -45,6 +45,15 @@ if(cluster.isPrimary) {
 
     const __dirname = dirname(fileURLToPath(import.meta.url));
 
+    // Servir les fichiers statiques avec les bons types MIME
+    app.use(express.static(process.cwd(), {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        }
+      }
+    }));
+
     app.get('/', (req, res) => {
         res.sendFile(join(__dirname, 'index.html'));
     });

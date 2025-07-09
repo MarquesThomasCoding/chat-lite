@@ -24,6 +24,7 @@
     </style>
   </head>
   <body>
+    <div id="video-container" style="height: 400px; width: 400px;"></div>
     <div id="users-container">
       <div id="users-count">Utilisateurs connectés (0)</div>
       <ul id="users-list"></ul>
@@ -33,7 +34,8 @@
       <input id="input" autocomplete="off" /><button>Send</button>
       <button id="toggle-btn">Disconnect</button>
     </form>
-
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+    <script src="js/video.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let counter = 0;
