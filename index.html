@@ -1,164 +1,172 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>Socket.IO chat</title>
-    <style>
-      body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-
-      #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
-      #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
-      #input:focus { outline: none; }
-      #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
-
-      #messages { list-style-type: none; margin: 0; padding: 0; }
-      #messages > li { padding: 0.5rem 1rem; }
-      #messages > li:nth-child(odd) { background: #efefef; }
-
-      #users-container { position: fixed; top: 0; right: 0; width: 200px; background: rgba(255, 255, 255, 0.9); border-left: 1px solid #ccc; padding: 1rem; box-sizing: border-box; backdrop-filter: blur(10px); }
-      #users-list { list-style-type: none; margin: 0; padding: 0; }
-      #users-list > li { padding: 0.25rem 0; font-size: 0.9rem; }
-      #users-count { font-weight: bold; margin-bottom: 0.5rem; }
-      
-      body { margin-right: 200px; }
-
-      #rooms-container { position:fixed; top:0; left:0; width:100%; background:rgba(0,0,0,0.05); padding:0.5rem 0 0.5rem 210px; z-index:10; display:flex; gap:1rem; align-items:center; }
-      #current-room { font-weight:bold; }
-      .room-btn { background: #333; border: none; padding: 0 1rem; border-radius: 3px; outline: none; color: #fff; cursor: pointer; }
-    </style>
-  </head>
-  <body>
-    <div id="users-container">
-      <div id="users-count">Utilisateurs connectés (0)</div>
-      <ul id="users-list"></ul>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Socket.IO Chat + TTT</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; margin-right: 200px; }
+    #form { position: fixed; bottom: 0; left: 0; right: 0; display: flex; padding: 0.25rem; background: #eee; }
+    #input { flex: 1; padding: 0.5rem; }
+    #form button { padding: 0.5rem 1rem; }
+    #messages { list-style: none; margin: 0; padding: 0; }
+    #messages li { padding: 0.5rem; }
+    #messages li:nth-child(odd) { background: #f0f0f0; }
+    #users-container {
+      position: fixed; right: 0; top: 0; width: 200px;
+      background: #fafafa; border-left: 1px solid #ccc; padding: 1rem;
+    }
+    #rooms-container {
+      position: fixed; top: 0; left: 0; right: 200px;
+      background: #ddd; padding: 0.5rem; display: flex; gap: 0.5rem;
+    }
+    .room-btn { padding: 0.25rem 0.75rem; cursor: pointer; }
+    .ttt-cell {
+      width: 100px; height: 100px;
+      font-size: 2rem; display: flex; justify-content: center; align-items: center;
+      border: 1px solid #999; cursor: pointer; background: #fff;
+    }
+    #ttt-board { display: grid; grid-template-columns: repeat(3, 100px); margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div id="rooms-container">
+    <span id="current-room">Room: Général</span>
+    <button class="room-btn" data-room="Général">Général</button>
+    <button class="room-btn" data-room="Jeux">Jeux</button>
+    <button class="room-btn" data-room="Tech">Tech</button>
+  </div>
+  <ul id="messages"></ul>
+  <form id="form">
+    <input id="input" autocomplete="off" /><button>Envoyer</button>
+  </form>
+  <div id="users-container">
+    <div id="users-count">Utilisateurs connectés (0)</div>
+    <ul id="users-list"></ul>
+  </div>
+  <div style="margin: 1rem;">
+    <button id="ttt-join" style="display: none;">Rejoindre Tic Tac Toe</button>
+    <div id="ttt-container" style="display: none;">
+      <h2>Tic Tac Toe</h2>
+      <div id="ttt-board"></div>
+      <div id="ttt-status"></div>
+      <button id="ttt-reset">Réinitialiser</button>
     </div>
-    <div id="rooms-container">
-      <span id="current-room">Room: Général</span>
-      <button class="room-btn" data-room="Général">Général</button>
-      <button class="room-btn" data-room="Sport">Sport</button>
-      <button class="room-btn" data-room="Tech">Tech</button>
-    </div>
-    <ul id="messages"></ul>
-    <form id="form" action="">
-      <input id="input" autocomplete="off" /><button>Send</button>
-      <button id="toggle-btn">Disconnect</button>
-    </form>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const usersList = document.getElementById('users-list');
+    const usersCount = document.getElementById('users-count');
+    let currentRoom = 'Général';
+    let clientOffset = 0;
+    const tttJoinBtn = document.getElementById('ttt-join');
+    const tttContainer = document.getElementById('ttt-container');
+    const tttBoard = document.getElementById('ttt-board');
+    const tttStatus = document.getElementById('ttt-status');
+    const tttReset = document.getElementById('ttt-reset');
+    let mySymbol = null;
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        let counter = 0;
-        let currentRoom = 'Général';
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      if (input.value) {
+        socket.emit('chat message', input.value, `c${++clientOffset}`, currentRoom);
+        input.value = '';
+      }
+    });
 
-        const socket = io({
-            auth: {
-            serverOffset: 0
-            },
-            ackTimeout: 10000,
-            retries: 3,
+    socket.on('chat message', (msg, serverOffset, room) => {
+      if (room === currentRoom) {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        messages.appendChild(item);
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+    });
+
+    socket.on('room history', (history, room) => {
+      if (room !== currentRoom) return;
+      messages.innerHTML = '';
+      history.forEach(({ msg }) => {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        messages.appendChild(item);
+      });
+    });
+
+    function updateTTTVisibility() {
+      if (currentRoom === 'Jeux') {
+        tttJoinBtn.style.display = '';
+      } else {
+        tttJoinBtn.style.display = 'none';
+        tttContainer.style.display = 'none';
+      }
+    }
+
+    updateTTTVisibility();
+
+    document.querySelectorAll('.room-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const newRoom = btn.dataset.room;
+        socket.emit('join room', newRoom, currentRoom, () => {
+          currentRoom = newRoom;
+          document.getElementById('current-room').textContent = `Room: ${newRoom}`;
+          updateTTTVisibility();
         });
+      });
+    });
 
-        const form = document.getElementById('form');
-        const input = document.getElementById('input');
-        const messages = document.getElementById('messages');
-        const usersList = document.getElementById('users-list');
-        const usersCount = document.getElementById('users-count');
-        const currentRoomSpan = document.getElementById('current-room');
-        const roomButtons = document.querySelectorAll('.room-btn');
+    socket.on('connected users', users => {
+      usersList.innerHTML = '';
+      users.forEach(user => {
+        const li = document.createElement('li');
+        li.textContent = user;
+        usersList.appendChild(li);
+      });
+      usersCount.textContent = `Utilisateurs connectés (${users.length})`;
+    });
 
-        function updateUsersList(users) {
-            usersList.innerHTML = '';
-            usersCount.textContent = `Utilisateurs connectés (${users.length})`;
-            users.forEach(userId => {
-                const userItem = document.createElement('li');
-                userItem.textContent = userId === socket.id ? `${userId} (vous)` : userId;
-                usersList.appendChild(userItem);
-            });
-        }
+    // === TTT ===
+    tttJoinBtn.addEventListener('click', () => {
+      socket.emit('ttt join');
+      tttContainer.style.display = 'block';
+    });
 
-        socket.on('connected users', (users) => {
-            console.log('Connected users:', users);
-            updateUsersList(users);
+    tttReset.addEventListener('click', () => {
+      socket.emit('ttt reset');
+    });
+
+    socket.on('ttt update', ({ board, currentPlayer, winner, symbol }) => {
+      if (symbol) mySymbol = symbol;
+      console.log(`Update received: symbol=${symbol}, mySymbol=${mySymbol}, currentPlayer=${currentPlayer}, winner=${winner}`);
+      tttBoard.innerHTML = '';
+      board.forEach((val, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'ttt-cell';
+        cell.textContent = val || '';
+        cell.addEventListener('click', () => {
+          console.log(`Cell clicked: mySymbol=${mySymbol}, currentPlayer=${currentPlayer}`);
+          if (!val && mySymbol === currentPlayer && !winner) {
+            console.log('Sending move...');
+            socket.emit('ttt move', i);
+          } else {
+            console.log('Move not allowed:', !val, mySymbol === currentPlayer, !winner);
+          }
         });
-
-        socket.on('user connected', (userId) => {
-            console.log('User connected:', userId);
-            // La liste sera mise à jour par l'événement 'connected users' qui suit
-        });
-
-        socket.on('user disconnected', (userId) => {
-            console.log('User disconnected:', userId);
-            // La liste sera mise à jour par l'événement 'connected users' qui suit
-        });
-
-        // Gérer les événements de connexion/déconnexion du socket actuel
-        socket.on('connect', () => {
-            console.log('Je me suis connecté avec l\'ID:', socket.id);
-        });
-
-        socket.on('disconnect', () => {
-            console.log('Je me suis déconnecté');
-            // Réinitialiser la liste des utilisateurs
-            updateUsersList([]);
-        });
-
-        roomButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const newRoom = btn.getAttribute('data-room');
-                if (newRoom !== currentRoom) {
-                    socket.emit('join room', newRoom, currentRoom, () => {}); // Ajoute un callback vide
-                    currentRoom = newRoom;
-                    currentRoomSpan.textContent = `Room: ${currentRoom}`;
-                    messages.innerHTML = '';
-                }
-            });
-        });
-
-        // Affiche l'historique reçu du serveur pour la room sélectionnée
-        socket.on('room history', (history, room) => {
-            if (room === currentRoom) {
-                messages.innerHTML = '';
-                history.forEach(({msg, serverOffset}) => {
-                    const item = document.createElement('li');
-                    item.textContent = msg;
-                    messages.appendChild(item);
-                });
-                window.scrollTo(0, document.body.scrollHeight);
-            }
-        });
-
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            if (input.value) {
-                const clientOffset = `${socket.id}-${counter++}`;
-                socket.emit('chat message', input.value, clientOffset, currentRoom); // Ajoute la room
-                input.value = '';
-            }
-        });
-
-        socket.on('chat message', (msg, serverOffset, room) => {
-            if (room === currentRoom) {
-                const item = document.createElement('li');
-                item.textContent = msg;
-                messages.appendChild(item);
-                window.scrollTo(0, document.body.scrollHeight);
-                socket.auth.serverOffset = serverOffset;
-            }
-        });
-    </script>
-
-    <script>
-        const toggleButton = document.getElementById('toggle-btn');
-
-        toggleButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (socket.connected) {
-                toggleButton.innerText = 'Connect';
-                socket.disconnect();
-            } else {
-                toggleButton.innerText = 'Disconnect';
-                socket.connect();
-            }
-        });
-    </script>
-  </body>
+        tttBoard.appendChild(cell);
+      });
+      // Affichage du statut
+      if (symbol === 'X') {
+        tttStatus.textContent = 'Vous êtes X. ' + (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
+      } else if (symbol === 'O') {
+        tttStatus.textContent = 'Vous êtes O. ' + (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
+      } else {
+        tttStatus.textContent = (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
+      }
+    });
+  </script>
+</body>
 </html>
