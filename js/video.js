@@ -1,9 +1,9 @@
 const videoContainer = document.getElementById('video-container');
 const myVideoStream = document.createElement('video');
-const socket = io();
+const videoSocket = io();
 const peer = new Peer(undefined, {
     host: 'localhost',
-    secure: true,
+    secure: false,
     port: 3000,
 });
 
@@ -29,11 +29,11 @@ peer.on('open', () => {
     console.log('Connected to peer server');
 });
 
-socket.on('user-connected', userId => {
+videoSocket.on('user-connected', userId => {
     connectToNewUser(userId, stream);
 });
 
-socket.on('user-disconnected', userId => {
+videoSocket.on('user-disconnected', userId => {
     if (peers[userId]) {
         peers[userId].close();
     }

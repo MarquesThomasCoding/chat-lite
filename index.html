@@ -44,9 +44,9 @@
       <input id="input" autocomplete="off" /><button>Send</button>
       <button id="toggle-btn">Disconnect</button>
     </form>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
     <script src="js/video.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <script>
         let counter = 0;
         let currentRoom = 'Général';
@@ -146,9 +146,6 @@
                 socket.auth.serverOffset = serverOffset;
             }
         });
-    </script>
-
-    <script>
         const toggleButton = document.getElementById('toggle-btn');
 
         toggleButton.addEventListener('click', (e) => {
