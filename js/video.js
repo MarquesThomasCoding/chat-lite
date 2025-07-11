@@ -2,7 +2,11 @@ function startVideoRoom() {
     const videoContainer = document.getElementById('video-container');
     const myVideoStream = document.createElement('video');
     const videoSocket = io();
-    const peer = new Peer();
+    const peer = new Peer( undefined, {
+        host: 'https://chat-lite-qw2x.onrender.com/',
+        port: 3000,
+        secure: true,
+    });
     let peers = {};
     let localStream;
     myVideoStream.muted = true;
