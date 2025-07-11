@@ -8,18 +8,21 @@ import { open } from 'sqlite';
 import { availableParallelism } from 'node:os';
 import cluster from 'node:cluster';
 import { createAdapter, setupPrimary } from '@socket.io/cluster-adapter';
+import { PeerServer } from 'peer';
 
-if (cluster.isPrimary) {
-  const numCPUs = availableParallelism();
-  for (let i = 0; i < numCPUs; i++) {
-    cluster.fork({ PORT: 3000 + i });
-  }
-  setupPrimary();
-} else {
+// if (cluster.isPrimary) {
+//   const numCPUs = availableParallelism();
+//   for (let i = 0; i < 6; i++) {
+//     cluster.fork({ PORT: 3000 + i });
+//   }
+//   setupPrimary();
+// } else {
   const db = await open({
     filename: 'chat.db',
     driver: sqlite3.Database
   });
+
+  const peerIds = {};
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -34,10 +37,11 @@ if (cluster.isPrimary) {
   const server = createServer(app);
   const io = new Server(server, {
     connectionStateRecovery: {},
-    adapter: createAdapter()
+    // adapter: createAdapter()
   });
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
+  app.use(express.static(__dirname));
   const tttGames = new Map(); // Pour gérer les parties de TTT
 
   app.get('/', (req, res) => {
@@ -95,6 +99,19 @@ if (cluster.isPrimary) {
       const connectedUsers = sockets.map(s => s.id);
       io.emit('connected users', connectedUsers);
       socket.broadcast.emit('user connected', socket.id);
+    });
+
+    socket.on('peer-id', (peerId) => {
+        peerIds[socket.id] = peerId;
+        // Envoie la liste des peerIds déjà présents au nouvel arrivant
+        const otherPeers = Object.entries(peerIds)
+            .filter(([id]) => id !== socket.id)
+            .map(([id, pid]) => ({ userId: id, peerId: pid }));
+        socket.emit('all-peers', otherPeers);
+        // Log pour vérifier l'émission de l'événement
+        console.log('Broadcast user-connected', { userId: socket.id, peerId });
+        // Informe les autres qu'un nouvel utilisateur est arrivé
+        socket.broadcast.emit('user-connected', { userId: socket.id, peerId });
     });
 
     // === CHAT ROOMS ===
@@ -203,8 +220,9 @@ if (cluster.isPrimary) {
     });
   });
 
-  const port = process.env.PORT;
+  const port = 3000;
   server.listen(port, () => {
     console.log(`Serveur en ligne : http://localhost:${port}`);
   });
-}
+  const peerServer = PeerServer({ port: 3001, path: '/' });
+// }
