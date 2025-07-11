@@ -17,7 +17,6 @@
       background: #fafafa; border-left: 1px solid #ccc; padding: 1rem;
     }
     #rooms-container {
-      position: fixed; top: 0; left: 0; right: 200px;
       background: #ddd; padding: 0.5rem; display: flex; gap: 0.5rem;
     }
     .room-btn { padding: 0.25rem 0.75rem; cursor: pointer; }
@@ -27,6 +26,19 @@
       border: 1px solid #999; cursor: pointer; background: #fff;
     }
     #ttt-board { display: grid; grid-template-columns: repeat(3, 100px); margin-top: 1rem; }
+    #video-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f9f9f9;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+    }
+    video {
+        max-height: 50vh;
+    }
   </style>
 </head>
 <body>
@@ -37,7 +49,7 @@
     <button class="room-btn" data-room="Tech">Tech</button>
     <button class="room-btn" data-room="Video">Video</button>
   </div>
-  <div id="video-container" style="height: 400px; width: 400px;"></div>
+  <div id="video-container"></div>
   <ul id="messages"></ul>
   <form id="form">
     <input id="input" autocomplete="off" /><button>Envoyer</button>
@@ -100,24 +112,33 @@
       });
     });
 
-    function updateTTTVisibility() {
+    function updateRoomVisibility() {
+      // TTT
       if (currentRoom === 'Jeux') {
         tttJoinBtn.style.display = '';
       } else {
         tttJoinBtn.style.display = 'none';
         tttContainer.style.display = 'none';
       }
+      // Vidéo
+      const videoContainer = document.getElementById('video-container');
+      if (currentRoom === 'Video') {
+        videoContainer.style.display = '';
+      } else {
+        videoContainer.style.display = 'none';
+      }
     }
 
-    updateTTTVisibility();
+    updateRoomVisibility();
 
     document.querySelectorAll('.room-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const newRoom = btn.dataset.room;
-        socket.emit('join room', newRoom, currentRoom, () => {
-          currentRoom = newRoom;
+        const oldRoom = currentRoom;
+        currentRoom = newRoom;
+        socket.emit('join room', newRoom, oldRoom, () => {
           document.getElementById('current-room').textContent = `Room: ${newRoom}`;
-          updateTTTVisibility();
+          updateRoomVisibility();
         });
       });
     });

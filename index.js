@@ -102,16 +102,23 @@ import { PeerServer } from 'peer';
     });
 
     socket.on('peer-id', (peerId) => {
+        // Vérifie que le socket est bien dans la room "Vidéo"
+        if (!socket.rooms.has('Vidéo')) {
+            console.log('Refus peer-id : pas dans la room Vidéo');
+            return;
+        }
         peerIds[socket.id] = peerId;
-        // Envoie la liste des peerIds déjà présents au nouvel arrivant
-        const otherPeers = Object.entries(peerIds)
-            .filter(([id]) => id !== socket.id)
-            .map(([id, pid]) => ({ userId: id, peerId: pid }));
-        socket.emit('all-peers', otherPeers);
-        // Log pour vérifier l'émission de l'événement
-        console.log('Broadcast user-connected', { userId: socket.id, peerId });
-        // Informe les autres qu'un nouvel utilisateur est arrivé
-        socket.broadcast.emit('user-connected', { userId: socket.id, peerId });
+        // Envoie la liste des peerIds déjà présents dans la room Vidéo
+        io.in('Vidéo').fetchSockets().then(socketsInRoom => {
+            const idsInRoom = socketsInRoom.map(s => s.id);
+            const otherPeers = Object.entries(peerIds)
+                .filter(([id]) => id !== socket.id && idsInRoom.includes(id))
+                .map(([id, pid]) => ({ userId: id, peerId: pid }));
+            socket.emit('all-peers', otherPeers);
+            // Informe les autres membres de la room Vidéo
+            socket.to('Vidéo').emit('user-connected', { userId: socket.id, peerId });
+            console.log('Broadcast user-connected (Vidéo)', { userId: socket.id, peerId });
+        });
     });
 
     // === CHAT ROOMS ===
