@@ -11,109 +11,118 @@ import { createAdapter, setupPrimary } from '@socket.io/cluster-adapter';
 
 if(cluster.isPrimary) {
     const numCPUs = availableParallelism();
-    // create one worker per available core
     for (let i = 0; i < numCPUs; i++) {
         cluster.fork({
         PORT: 3000 + i
         });
     }
-  
-  // set up the adapter on the primary thread
-  setupPrimary();
+    setupPrimary();
 } else {
-    // open the database file
     const db = await open({
         filename: 'chat.db',
         driver: sqlite3.Database
     });
 
-    // create our 'messages' table (you can ignore the 'client_offset' column for now)
     await db.exec(`
-        CREATE TABLE IF NOT EXISTS messages (
+        CREATE TABLE IF NOT EXISTS channels (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_offset TEXT UNIQUE,
-            content TEXT
+            name TEXT UNIQUE
+        );
+    `);
+    
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS channel_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_id INTEGER,
+            sender_id TEXT,
+            content TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(channel_id) REFERENCES channels(id)
         );
     `);
 
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+
     const app = express();
+    app.use(express.static(__dirname));
+
     const server = createServer(app);
     const io = new Server(server, {
         connectionStateRecovery: {},
         adapter: createAdapter()
     });
 
-    const __dirname = dirname(fileURLToPath(import.meta.url));
 
     app.get('/', (req, res) => {
         res.sendFile(join(__dirname, 'index.html'));
     });
 
+    // API pour récupérer la liste des channels
+    app.get('/channels', async (req, res) => {
+        const channels = await db.all('SELECT id, name FROM channels');
+        res.json(channels);
+    });
+
     io.on('connection', async (socket) => {
-        console.log('Un utilisateur s\'est connecté:', socket.id);
+        console.log('Utilisateur connecté:', socket.id);
         
-        // Utiliser process.nextTick pour s'assurer que la socket est complètement ajoutée
-        process.nextTick(async () => {
-            // Utiliser l'adapter pour obtenir tous les sockets de tous les workers
-            const sockets = await io.fetchSockets();
-            const connectedUsers = sockets.map(s => s.id);
-            console.log('Utilisateurs connectés:', connectedUsers);
-            io.emit('connected users', connectedUsers);
-            
-            // Notifier les autres utilisateurs qu'un nouvel utilisateur s'est connecté
-            socket.broadcast.emit('user connected', socket.id);
+        let defaultChannel = await db.get('SELECT id FROM channels WHERE name = ?', 'Général');
+        if (!defaultChannel) {
+            await db.run('INSERT INTO channels (name) VALUES (?)', 'Général');
+            defaultChannel = await db.get('SELECT id FROM channels WHERE name = ?', 'Général');
+        }
+        socket.join(`channel_${defaultChannel.id}`);
+        socket.data.currentChannel = defaultChannel.id;
+
+        
+        const channels = await db.all('SELECT id, name FROM channels');
+        socket.emit('channel list', channels);
+        socket.emit('joined channel', { id: defaultChannel.id, name: 'Général' });
+
+        const messages = await db.all('SELECT sender_id, content, created_at FROM channel_messages WHERE channel_id = ? ORDER BY id ASC', defaultChannel.id);
+        socket.emit('channel messages', messages);
+
+        socket.on('create channel', async (channelName, callback) => {
+            try {
+                await db.run('INSERT INTO channels (name) VALUES (?)', channelName);
+                const channels = await db.all('SELECT id, name FROM channels');
+                io.emit('channel list', channels);
+                if(callback) callback({ success: true });
+            } catch (e) {
+                if(callback) callback({ success: false, error: 'Nom de channel déjà utilisé.' });
+            }
         });
 
-        socket.on('chat message', async (msg, clientOffset, callback) => {
-            let result;
-            try {
-            // store the message in the database
-            result = await db.run('INSERT INTO messages (content, client_offset) VALUES (?, ?)', msg, clientOffset);
-            } catch (e) {
-                if(e.errno === 19) {
-                    callback()
-                } else {
-                }
-            return;
+        socket.on('join channel', async (channelId, callback) => {
+            if (socket.data.currentChannel) {
+                socket.leave(`channel_${socket.data.currentChannel}`);
             }
-            // include the offset with the message
-            io.emit('chat message', msg, result.lastID);
-            callback();
+            socket.join(`channel_${channelId}`);
+            socket.data.currentChannel = channelId;
+
+            const messages = await db.all('SELECT sender_id, content, created_at FROM channel_messages WHERE channel_id = ? ORDER BY id ASC', channelId);
+            socket.emit('channel messages', messages);
+
+            const channel = await db.get('SELECT id, name FROM channels WHERE id = ?', channelId);
+            socket.emit('joined channel', channel);
+            if(callback) callback({ success: true });
+        });
+
+        socket.on('channel message', async (msg, callback) => {
+            const channelId = socket.data.currentChannel;
+            if (!channelId) return;
+            await db.run('INSERT INTO channel_messages (channel_id, sender_id, content) VALUES (?, ?, ?)', channelId, socket.id, msg);
+            const message = { sender_id: socket.id, content: msg, created_at: new Date().toISOString() };
+            io.to(`channel_${channelId}`).emit('channel message', message);
+            callback && callback();
         });
 
         socket.on('disconnect', () => {
-            console.log('Un utilisateur s\'est déconnecté:', socket.id);
-            
-            // Utiliser process.nextTick pour s'assurer que la socket est complètement supprimée
-            process.nextTick(async () => {
-                // Utiliser l'adapter pour obtenir tous les sockets de tous les workers
-                const sockets = await io.fetchSockets();
-                const connectedUsers = sockets.map(s => s.id);
-                console.log('Utilisateurs connectés après déconnexion:', connectedUsers);
-                io.emit('connected users', connectedUsers);
-                
-                // Notifier les autres utilisateurs qu'un utilisateur s'est déconnecté
-                socket.broadcast.emit('user disconnected', socket.id);
-            });
+            console.log('Utilisateur déconnecté:', socket.id);
         });
-
-        if (!socket.recovered) {
-            // if the connection state recovery was not successful
-            try {
-            await db.each('SELECT id, content FROM messages WHERE id > ?',
-                [socket.handshake.auth.serverOffset || 0],
-                (_err, row) => {
-                socket.emit('chat message', row.content, row.id);
-                }
-            )
-            } catch (e) {
-            // something went wrong
-            }
-        }
     });
 
     const port = process.env.PORT;
-
     server.listen(port, () => {
         console.log(`server running at http://localhost:${port}`);
     });
