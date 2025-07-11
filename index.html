@@ -1,197 +1,280 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Socket.IO Chat + TTT</title>
-  <style>
-    body { margin: 0; font-family: sans-serif; margin-right: 200px; }
-    #form { position: fixed; bottom: 0; left: 0; right: 0; display: flex; padding: 0.25rem; background: #eee; }
-    #input { flex: 1; padding: 0.5rem; }
-    #form button { padding: 0.5rem 1rem; }
-    #messages { list-style: none; margin: 0; padding: 0; }
-    #messages li { padding: 0.5rem; }
-    #messages li:nth-child(odd) { background: #f0f0f0; }
-    #users-container {
-      position: fixed; right: 0; top: 0; width: 200px;
-      background: #fafafa; border-left: 1px solid #ccc; padding: 1rem;
-    }
-    #rooms-container {
-      background: #ddd; padding: 0.5rem; display: flex; gap: 0.5rem;
-    }
-    .room-btn { padding: 0.25rem 0.75rem; cursor: pointer; }
-    .ttt-cell {
-      width: 100px; height: 100px;
-      font-size: 2rem; display: flex; justify-content: center; align-items: center;
-      border: 1px solid #999; cursor: pointer; background: #fff;
-    }
-    #ttt-board { display: grid; grid-template-columns: repeat(3, 100px); margin-top: 1rem; }
-    #video-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 1rem;
-        padding: 1rem;
-        background: #f9f9f9;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-    }
-    video {
-        max-height: 50vh;
-    }
-  </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>Socket.IO Chat + TTT</title>
+    <style>
+        body {
+            position: relative;
+            margin: 0;
+            font-family: sans-serif;
+            margin-right: 233px;
+            background-color: #323339;
+            color: white;
+            height: 100vh;
+        }
+
+        #form {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            display: flex;
+            padding: 0.25rem;
+            background: transparent;
+            width: 100%;
+        }
+
+        #input {
+            flex: 1;
+            padding: 0.5rem;
+            background: #393a41;
+            border: 1px solid #3d3e44;
+            border-radius: 7px;
+            margin: 0 8px 20px 8px;
+            height: 40px;
+            color: white;
+        }
+
+        #form button {
+            padding: 0.5rem 1rem;
+            background: #4a4b50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            height: 40px;
+        }
+
+        #messages {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #messages li {
+            padding: 0.5rem;
+        }
+
+        #users-container {
+            position: fixed;
+            right: 0;
+            top: 0;
+            height: 100vh;
+            width: 200px;
+            background: #2c2d32;
+            border-left: 1px solid #ccc;
+            padding: 1rem;
+        }
+
+        #rooms-container {
+            background: #2c2d32;
+            color: white;
+            padding: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .room-btn {
+            padding: 0.25rem 0.75rem;
+            cursor: pointer;
+        }
+
+        .ttt-cell {
+            width: 100px;
+            height: 100px;
+            font-size: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #999;
+            cursor: pointer;
+            background: #fff;
+        }
+
+        #ttt-board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            margin-top: 1rem;
+        }
+
+        #video-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f9f9f9;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        video {
+            max-height: 50vh;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            margin-top: 1rem;
+        }
+    </style>
 </head>
+
 <body>
-  <div id="rooms-container">
-    <span id="current-room">Room: Général</span>
-    <button class="room-btn" data-room="Général">Général</button>
-    <button class="room-btn" data-room="Jeux">Jeux</button>
-    <button class="room-btn" data-room="Tech">Tech</button>
-    <button class="room-btn" data-room="Video">Video</button>
-  </div>
-  <div id="video-container"></div>
-  <ul id="messages"></ul>
-  <form id="form">
-    <input id="input" autocomplete="off" /><button>Envoyer</button>
-  </form>
-  <div id="users-container">
-    <div id="users-count">Utilisateurs connectés (0)</div>
-    <ul id="users-list"></ul>
-  </div>
-  <div style="margin: 1rem;">
-    <button id="ttt-join" style="display: none;">Rejoindre Tic Tac Toe</button>
-    <div id="ttt-container" style="display: none;">
-      <h2>Tic Tac Toe</h2>
-      <div id="ttt-board"></div>
-      <div id="ttt-status"></div>
-      <button id="ttt-reset">Réinitialiser</button>
+    <div id="rooms-container">
+        <span id="current-room">Room: Général</span>
+        <button class="room-btn" data-room="Général">Général</button>
+        <button class="room-btn" data-room="Jeux">Jeux</button>
+        <button class="room-btn" data-room="Tech">Tech</button>
+        <button class="room-btn" data-room="Video">Video</button>
     </div>
-  </div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script>
-    const socket = io();
-    const form = document.getElementById('form');
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
-    const usersList = document.getElementById('users-list');
-    const usersCount = document.getElementById('users-count');
-    let currentRoom = 'Général';
-    let clientOffset = 0;
-    const tttJoinBtn = document.getElementById('ttt-join');
-    const tttContainer = document.getElementById('ttt-container');
-    const tttBoard = document.getElementById('ttt-board');
-    const tttStatus = document.getElementById('ttt-status');
-    const tttReset = document.getElementById('ttt-reset');
-    let mySymbol = null;
+    <div id="video-container"></div>
+    <ul id="messages"></ul>
+    <form id="form">
+        <input id="input" autocomplete="off" /><button>Envoyer</button>
+    </form>
+    <div id="users-container">
+        <div id="users-count">Utilisateurs connectés (0)</div>
+        <ul id="users-list"></ul>
+    </div>
+    <div style="margin: 1rem;">
+        <button id="ttt-join" style="display: none;">Rejoindre Tic Tac Toe</button>
+        <div id="ttt-container" style="display: none;">
+            <h2>Tic Tac Toe</h2>
+            <div id="ttt-board"></div>
+            <div id="ttt-status"></div>
+            <button id="ttt-reset">Réinitialiser</button>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+    <script>
+        const socket = io();
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+        const usersList = document.getElementById('users-list');
+        const usersCount = document.getElementById('users-count');
+        let currentRoom = 'Général';
+        let clientOffset = 0;
+        const tttJoinBtn = document.getElementById('ttt-join');
+        const tttContainer = document.getElementById('ttt-container');
+        const tttBoard = document.getElementById('ttt-board');
+        const tttStatus = document.getElementById('ttt-status');
+        const tttReset = document.getElementById('ttt-reset');
+        let mySymbol = null;
 
-    form.addEventListener('submit', e => {
-      e.preventDefault();
-      if (input.value) {
-        socket.emit('chat message', input.value, `c${++clientOffset}`, currentRoom);
-        input.value = '';
-      }
-    });
-
-    socket.on('chat message', (msg, serverOffset, room) => {
-      if (room === currentRoom) {
-        const item = document.createElement('li');
-        item.textContent = msg;
-        messages.appendChild(item);
-        window.scrollTo(0, document.body.scrollHeight);
-      }
-    });
-
-    socket.on('room history', (history, room) => {
-      if (room !== currentRoom) return;
-      messages.innerHTML = '';
-      history.forEach(({ msg }) => {
-        const item = document.createElement('li');
-        item.textContent = msg;
-        messages.appendChild(item);
-      });
-    });
-
-    function updateRoomVisibility() {
-      // TTT
-      if (currentRoom === 'Jeux') {
-        tttJoinBtn.style.display = '';
-      } else {
-        tttJoinBtn.style.display = 'none';
-        tttContainer.style.display = 'none';
-      }
-      // Vidéo
-      const videoContainer = document.getElementById('video-container');
-      if (currentRoom === 'Video') {
-        videoContainer.style.display = '';
-      } else {
-        videoContainer.style.display = 'none';
-      }
-    }
-
-    updateRoomVisibility();
-
-    document.querySelectorAll('.room-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const newRoom = btn.dataset.room;
-        const oldRoom = currentRoom;
-        currentRoom = newRoom;
-        socket.emit('join room', newRoom, oldRoom, () => {
-          document.getElementById('current-room').textContent = `Room: ${newRoom}`;
-          updateRoomVisibility();
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            if (input.value) {
+                socket.emit('chat message', input.value, `c${++clientOffset}`, currentRoom);
+                input.value = '';
+            }
         });
-      });
-    });
 
-    socket.on('connected users', users => {
-      usersList.innerHTML = '';
-      users.forEach(user => {
-        const li = document.createElement('li');
-        li.textContent = user;
-        usersList.appendChild(li);
-      });
-      usersCount.textContent = `Utilisateurs connectés (${users.length})`;
-    });
-
-    // === TTT ===
-    tttJoinBtn.addEventListener('click', () => {
-      socket.emit('ttt join');
-      tttContainer.style.display = 'block';
-    });
-
-    tttReset.addEventListener('click', () => {
-      socket.emit('ttt reset');
-    });
-
-    socket.on('ttt update', ({ board, currentPlayer, winner, symbol }) => {
-      if (symbol) mySymbol = symbol;
-      console.log(`Update received: symbol=${symbol}, mySymbol=${mySymbol}, currentPlayer=${currentPlayer}, winner=${winner}`);
-      tttBoard.innerHTML = '';
-      board.forEach((val, i) => {
-        const cell = document.createElement('div');
-        cell.className = 'ttt-cell';
-        cell.textContent = val || '';
-        cell.addEventListener('click', () => {
-          console.log(`Cell clicked: mySymbol=${mySymbol}, currentPlayer=${currentPlayer}`);
-          if (!val && mySymbol === currentPlayer && !winner) {
-            console.log('Sending move...');
-            socket.emit('ttt move', i);
-          } else {
-            console.log('Move not allowed:', !val, mySymbol === currentPlayer, !winner);
-          }
+        socket.on('chat message', (msg, serverOffset, room) => {
+            if (room === currentRoom) {
+                const item = document.createElement('li');
+                item.textContent = msg;
+                messages.appendChild(item);
+                window.scrollTo(0, document.body.scrollHeight);
+            }
         });
-        tttBoard.appendChild(cell);
-      });
-      // Affichage du statut
-      if (symbol === 'X') {
-        tttStatus.textContent = 'Vous êtes X. ' + (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
-      } else if (symbol === 'O') {
-        tttStatus.textContent = 'Vous êtes O. ' + (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
-      } else {
-        tttStatus.textContent = (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
-      }
-    });
-  </script>
-  <script src="js/video.js"></script>
+
+        socket.on('room history', (history, room) => {
+            if (room !== currentRoom) return;
+            messages.innerHTML = '';
+            history.forEach(({ msg }) => {
+                const item = document.createElement('li');
+                item.textContent = msg;
+                messages.appendChild(item);
+            });
+        });
+
+        function updateRoomVisibility() {
+            // TTT
+            if (currentRoom === 'Jeux') {
+                tttJoinBtn.style.display = '';
+            } else {
+                tttJoinBtn.style.display = 'none';
+                tttContainer.style.display = 'none';
+            }
+            // Vidéo
+            const videoContainer = document.getElementById('video-container');
+            if (currentRoom === 'Video') {
+                videoContainer.style.display = '';
+            } else {
+                videoContainer.style.display = 'none';
+            }
+        }
+
+        updateRoomVisibility();
+
+        document.querySelectorAll('.room-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const newRoom = btn.dataset.room;
+                const oldRoom = currentRoom;
+                currentRoom = newRoom;
+                socket.emit('join room', newRoom, oldRoom, () => {
+                    document.getElementById('current-room').textContent = `Room: ${newRoom}`;
+                    updateRoomVisibility();
+                });
+            });
+        });
+
+        socket.on('connected users', users => {
+            usersList.innerHTML = '';
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = user;
+                usersList.appendChild(li);
+            });
+            usersCount.textContent = `Utilisateurs connectés (${users.length})`;
+        });
+
+        // === TTT ===
+        tttJoinBtn.addEventListener('click', () => {
+            socket.emit('ttt join');
+            tttContainer.style.display = 'block';
+        });
+
+        tttReset.addEventListener('click', () => {
+            socket.emit('ttt reset');
+        });
+
+        socket.on('ttt update', ({ board, currentPlayer, winner, symbol }) => {
+            if (symbol) mySymbol = symbol;
+            console.log(`Update received: symbol=${symbol}, mySymbol=${mySymbol}, currentPlayer=${currentPlayer}, winner=${winner}`);
+            tttBoard.innerHTML = '';
+            board.forEach((val, i) => {
+                const cell = document.createElement('div');
+                cell.className = 'ttt-cell';
+                cell.textContent = val || '';
+                cell.addEventListener('click', () => {
+                    console.log(`Cell clicked: mySymbol=${mySymbol}, currentPlayer=${currentPlayer}`);
+                    if (!val && mySymbol === currentPlayer && !winner) {
+                        console.log('Sending move...');
+                        socket.emit('ttt move', i);
+                    } else {
+                        console.log('Move not allowed:', !val, mySymbol === currentPlayer, !winner);
+                    }
+                });
+                tttBoard.appendChild(cell);
+            });
+            // Affichage du statut
+            if (symbol === 'X') {
+                tttStatus.textContent = 'Vous êtes X. ' + (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
+            } else if (symbol === 'O') {
+                tttStatus.textContent = 'Vous êtes O. ' + (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
+            } else {
+                tttStatus.textContent = (winner === 'draw' ? 'Match nul !' : winner ? `Le gagnant est ${winner}` : `Au tour de ${currentPlayer}`);
+            }
+        });
+    </script>
+    <script src="js/video.js"></script>
 </body>
+
 </html>
