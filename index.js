@@ -8,7 +8,7 @@ import { open } from 'sqlite';
 import { availableParallelism } from 'node:os';
 import cluster from 'node:cluster';
 import { createAdapter, setupPrimary } from '@socket.io/cluster-adapter';
-import { PeerServer } from 'peer';
+import { ExpressPeerServer, PeerServer } from 'peer';
 
 // if (cluster.isPrimary) {
 //   const numCPUs = availableParallelism();
@@ -228,8 +228,9 @@ import { PeerServer } from 'peer';
   });
 
   const port = 3000;
+  const peerServer = ExpressPeerServer(server,{ debug: true, path: '/' });
+  app.use('/peerjs', peerServer);
   server.listen(port, () => {
     console.log(`Serveur en ligne : http://localhost:${port}`);
-  });
-  const peerServer = PeerServer({ port: 3001, path: '/' });
+  });  
 // }
