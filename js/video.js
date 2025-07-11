@@ -4,7 +4,7 @@ function startVideoRoom() {
     const videoSocket = io();
     const peer = new Peer( undefined, {
         host: 'chat-lite-qw2x.onrender.com',
-        port: 443,
+        port: 3000,
         secure: true,
     });
     let peers = {};
